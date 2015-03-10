@@ -1,0 +1,10 @@
+[Unit]
+Description="Google Servo control board manager"
+ConditionPathExists=/etc/google-servo.conf
+BindsTo=dev-usb-googleservo%i.device
+
+[Service]
+Type=notify
+NotifyAccess=all
+ExecStart=/usr/bin/run-servod /dev/usb/google-servo%i
+Restart=on-failure

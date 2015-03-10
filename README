@@ -1,0 +1,82 @@
+How do I shot Servo
+-------------------
+
+This set of tools lets you use a Servo control board for Chromebooks in some
+kind of vaguely automated fashion. After installing these and configuring for
+your local boards, you should have access to the CPU UART as
+/dev/google-servo/$devicename/cpu-uart, and the EC as
+/dev/google-servo/$devicename/ec-uart, as well as having servod itself
+listening for more complex commands on a predictable port.
+
+
+hdctools
+--------
+
+In order to actually communicate with the servo, you'll need to have hdctools
+installed somewhere we can see it. This is available at:
+https://chromium.googlesource.com/chromiumos/third_party/hdctools
+
+You'll need libftdi-dev, tidy, and python-setuptools.
+
+make
+sudo make install
+python setup.py build
+sudo python setup.py install
+
+
+Kernel module
+-------------
+
+Build and install this kernel module. Those of you who pay attention to the
+source may notice that it, in fact, does nothing. This is just here so the
+kernel will actually bind to it, which will trigger udev rules, which will in
+turn trigger systemd to start servod. There might be a better way to do this.
+
+Anyway, just build and install it.
+
+
+udev rules
+----------
+
+This udev rule is blindingly simple. Install it to /etc/udev/rules.d/.
+
+
+systemd
+-------
+
+As above, but /etc/systemd/system/.
+
+
+servod configuration
+--------------------
+
+The configuration, in /etc/google-servo.conf takes the form:
+localalias,serial,port,boardtype
+
+The localalias is what gets aliased into /dev/google-servo/$devicename/*, e.g.
+peach-pi-on-my-desk, peach-pi-over-there, big-one, blaze-two. You get the
+picture. The serial number comes from /sys/devices/*/serial; I recommend
+discovering this with:
+udevadm info --attribute-walk --name /dev/usb/google-servoN
+The immediate parent of that device shown, should have an ATTR{serial} entry
+in the form of "123456-12345".
+
+Port is the port number to bind to for dut-control to use later. boardtype is
+an internal value used by servo to work out how to communicate with the target
+device; see hdctools/servo/data/ for something resembling a list of possible
+values.
+
+
+servod wrapper
+--------------
+
+This fairly trivial wrapper runs out of systemd and creates the device links
+for /dev/google-servo/$devicename/*. You'll need python-numpy, python-pexpect,
+python-pyudev, python-serial, and python-usb to run it.
+
+
+Putting it all together
+-----------------------
+
+Once you've done all this, servod should turn up whenever you plug your board
+in, and disappear once you haven't. Brilliant.

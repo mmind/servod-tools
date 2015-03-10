@@ -1,0 +1,147 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2015 Collabora, Ltd.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, # and/or sell copies of the Software, and to permit persons to whom the # Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice (including the next
+# paragraph) shall be included in all copies or substantial portions of the
+# Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+#
+# Author: Daniel Stone <daniels@collabora.com>
+#
+# 
+# A wrapper around servod: fork servod itself, wait for it to start, and create
+# any device links.
+
+import logging
+import os
+import pyudev
+import sys
+
+from servo import client, multiservo, servod
+
+def run_servod():
+	try:
+		dev_path = sys.argv[1]
+	except:
+		print "usage: %s device-path" % sys.argv[0]
+		sys.exit(1)
+
+	ud_ctx = pyudev.Context()
+	if not ud_ctx:
+		print "couldn't create udev context"
+		sys.exit(1)
+
+	# XXX: This isn't very pleasant. What I'd hoped to do is use %P from
+	#      the udev rule to get the parent device, but this didn't play
+	#      well with systemd's BindsTo: the service just never started.
+	#      Would be good to fix this.
+	#
+	#      Anyway, the thinking is: get the device path from the usbmisc
+	#      device, walk up to the usb subdevice which actually represents
+	#      the interface, then walk up to its parent which represents the
+	#      entire device, and thus has the serial property.
+	try:
+	    ud_dev = pyudev.Device.from_device_file(ud_ctx, dev_path).parent.parent
+	except:
+		print "couldn't find udev device from %s" % dev_path
+		sys.exit(1)
+
+	if not "serial" in ud_dev.attributes:
+		print "parent-of-parent device %s has no serial attribute" % dev_path
+		sys.exit(1)
+
+	print ud_dev.attributes["serial"]
+	logger = logging.getLogger()
+	board_name = None
+	all_boards = multiservo.parse_rc(logger, "/etc/google-servo.conf")
+	for board in all_boards:
+		if not all_boards[board]["sn"] == ud_dev.attributes["serial"]:
+			continue
+		board_name = board
+
+	if not board_name:
+		print "Couldn't get board name for serial %s" % ud_dev.attributes["serial"]
+		sys.exit(91)
+
+	print "Board name: %s" % board_name
+
+	servod_output = os.pipe()
+	pid = os.fork()
+	if pid == 0: # child
+		os.dup2(servod_output[1], 1)
+		os.dup2(servod_output[1], 2)
+		# A comment in servod says they should fix it to not parse
+		# sys.argv directly. Quite.
+		sys.argv = ['servod', '--rcfile', '/etc/google-servo.conf',
+		            '--serialname', ud_dev.attributes["serial"]]
+		servod.main_function()
+	else: # parent
+		# Run servod and pull its stdout/stderr.
+		# FIXME: Smarter mainloop: a) poll on servo output, b) poll on servo process status, c) sd_notify.
+		servod_in = os.fdopen(servod_output[0])
+		line = servod_in.readline()
+		while line:
+			# Oh dear.
+			print line
+			if 'INFO - Listening on' in line:
+				try:
+					port = int(line.split(' ')[11])
+				except:
+					print "Couldn't get port - shut it all down"
+					sys.exit(99)
+
+				try:
+					servo_client = client.ServoClient(host="127.0.0.1",
+									  port=int(port))
+				except:
+					print "Could not connect to servo daemon"
+					sys.exit(90)
+
+                                results = servo_client.set_get_all(["ec_uart_pty", "cpu_uart_pty"])
+
+				print "EC UART: %s" % results[0]
+				print "CPU UART: %s" % results[1]
+
+				try:
+					os.stat("/dev/google-servo/%s" % board_name)
+				except:
+					os.makedirs("/dev/google-servo/%s" % board_name)
+
+				try:
+					os.stat("/dev/google-servo/%s/ec-uart" % board_name)
+					os.unlink("/dev/google-servo/%s/ec-uart" % board_name)
+				except:
+					pass
+
+				try:
+					os.stat("/dev/google-servo/%s/cpu-uart" % board_name)
+					os.unlink("/dev/google-servo/%s/cpu-uart" % board_name)
+				except:
+					pass
+
+				os.symlink(results[0], "/dev/google-servo/%s/ec-uart" % board_name)
+				os.symlink(results[1], "/dev/google-servo/%s/cpu-uart" % board_name)
+
+				# Yes, this should really be python-systemd; however, that's
+				# only available for python3, and servo only works with
+				# python2 ...
+				os.system("systemd-notify --ready --status='Board %s on port %d'" % (board_name, port))
+
+			line = servod_in.readline()
+
+if __name__ == '__main__':
+	run_servod()
