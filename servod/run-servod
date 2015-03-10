@@ -6,7 +6,9 @@
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
 # to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, # and/or sell copies of the Software, and to permit persons to whom the # Software is furnished to do so, subject to the following conditions:
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
 #
 # The above copyright notice and this permission notice (including the next
 # paragraph) shall be included in all copies or substantial portions of the
@@ -29,11 +31,63 @@
 import logging
 import os
 import pyudev
+import signal
 import sys
 
 from servo import client, multiservo, servod
 
+# Icky global variables. But then, icky signal handling.
+dev_dir = None
+child_pid = 0
+
+def do_cleanup(status):
+	try:
+		os.unlink("%s/ec-uart" % dev_dir)
+	except:
+		pass
+
+	try:
+		os.unlink("%s/cpu-uart" % dev_dir)
+	except:
+		pass
+
+	try:
+		os.rmdir("%s" % dev_dir)
+	except:
+		pass
+
+	try:
+		os.kill(pid, signal.SIGTERM)
+	except:
+		pass
+
+	sys.exit(status)
+
+def handle_sigterm(sig, stack):
+	do_cleanup(128 + signal.SIGTERM)
+	sys.exit(0)
+
+def do_connect(port, board_name):
+	servo_client = client.ServoClient(host="127.0.0.1", port=port)
+
+	results = servo_client.set_get_all(["ec_uart_pty", "cpu_uart_pty"])
+
+	print "EC UART: %s" % results[0]
+	print "CPU UART: %s" % results[1]
+
+	os.symlink(results[0], "%s/ec-uart" % dev_dir)
+	os.symlink(results[1], "%s/cpu-uart" % dev_dir)
+		
+	signal.signal(signal.SIGTERM, handle_sigterm)
+
+	# Yes, this should really be python-systemd; however, that's
+	# only available for python3, and servo only works with
+	# python2 ...
+	os.system("systemd-notify --ready --status='Board %s on port %d'" % (board_name, port))
+
 def run_servod():
+	logger = logging.getLogger()
+
 	try:
 		dev_path = sys.argv[1]
 	except:
@@ -64,26 +118,33 @@ def run_servod():
 		print "parent-of-parent device %s has no serial attribute" % dev_path
 		sys.exit(1)
 
-	print ud_dev.attributes["serial"]
-	logger = logging.getLogger()
+	target_serial = ud_dev.attributes["serial"]
+
 	board_name = None
 	all_boards = multiservo.parse_rc(logger, "/etc/google-servo.conf")
 	for board in all_boards:
-		if not all_boards[board]["sn"] == ud_dev.attributes["serial"]:
+		if not all_boards[board]["sn"] == target_serial:
 			continue
 		board_name = board
 
 	if not board_name:
-		print "Couldn't get board name for serial %s" % ud_dev.attributes["serial"]
+		print "Couldn't get board name for serial %s" % target_serial
 		sys.exit(91)
 
 	print "Board name: %s" % board_name
+
+	global dev_dir
+	dev_dir = "/dev/google-servo/%s" % board_name
+	os.makedirs(dev_dir)
 
 	servod_output = os.pipe()
 	pid = os.fork()
 	if pid == 0: # child
 		os.dup2(servod_output[1], 1)
 		os.dup2(servod_output[1], 2)
+		os.close(servod_output[0])
+		os.close(servod_output[1])
+
 		# A comment in servod says they should fix it to not parse
 		# sys.argv directly. Quite.
 		sys.argv = ['servod', '--rcfile', '/etc/google-servo.conf',
@@ -91,12 +152,21 @@ def run_servod():
 		servod.main_function()
 	else: # parent
 		# Run servod and pull its stdout/stderr.
-		# FIXME: Smarter mainloop: a) poll on servo output, b) poll on servo process status, c) sd_notify.
+		# FIXME: Smarter mainloop:
+		#  - remove devices when killed.
+		#  - always take child down with us.
+
+		global child_pid
+		child_pid = pid
+
 		servod_in = os.fdopen(servod_output[0])
+		os.close(servod_output[1])
+
 		line = servod_in.readline()
 		while line:
-			# Oh dear.
 			print line
+
+			# Oh dear.
 			if 'INFO - Listening on' in line:
 				try:
 					port = int(line.split(' ')[11])
@@ -104,44 +174,19 @@ def run_servod():
 					print "Couldn't get port - shut it all down"
 					sys.exit(99)
 
+				do_connect(port, board_name)
 				try:
-					servo_client = client.ServoClient(host="127.0.0.1",
-									  port=int(port))
+					pass
 				except:
 					print "Could not connect to servo daemon"
 					sys.exit(90)
 
-                                results = servo_client.set_get_all(["ec_uart_pty", "cpu_uart_pty"])
-
-				print "EC UART: %s" % results[0]
-				print "CPU UART: %s" % results[1]
-
-				try:
-					os.stat("/dev/google-servo/%s" % board_name)
-				except:
-					os.makedirs("/dev/google-servo/%s" % board_name)
-
-				try:
-					os.stat("/dev/google-servo/%s/ec-uart" % board_name)
-					os.unlink("/dev/google-servo/%s/ec-uart" % board_name)
-				except:
-					pass
-
-				try:
-					os.stat("/dev/google-servo/%s/cpu-uart" % board_name)
-					os.unlink("/dev/google-servo/%s/cpu-uart" % board_name)
-				except:
-					pass
-
-				os.symlink(results[0], "/dev/google-servo/%s/ec-uart" % board_name)
-				os.symlink(results[1], "/dev/google-servo/%s/cpu-uart" % board_name)
-
-				# Yes, this should really be python-systemd; however, that's
-				# only available for python3, and servo only works with
-				# python2 ...
-				os.system("systemd-notify --ready --status='Board %s on port %d'" % (board_name, port))
-
 			line = servod_in.readline()
+
+		print "Child exited - closing"
+
+		(pid_again, child_status) = os.waitpid(child_pid, 0)
+		do_cleanup(os.WEXITSTATUS(child_status))
 
 if __name__ == '__main__':
 	run_servod()
