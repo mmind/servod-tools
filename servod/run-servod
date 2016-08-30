@@ -114,11 +114,20 @@ def run_servod():
 		print "couldn't find udev device from %s" % dev_path
 		sys.exit(1)
 
-	if not "serial" in ud_dev.attributes:
-		print "parent-of-parent device %s has no serial attribute" % dev_path
-		sys.exit(1)
+	try:
+		# pyudev < 0.18
+		if not "serial" in ud_dev.attributes:
+			print "parent-of-parent device %s has no serial attribute" % dev_path
+			sys.exit(1)
 
-	target_serial = ud_dev.attributes["serial"]
+		target_serial = ud_dev.attributes["serial"]
+	except TypeError:
+		# pyudev 0.18 and above
+		try:
+			target_serial = ud_dev.attributes.asstring("serial")
+		except KeyError:
+			print "parent-of-parent device %s has no serial attribute" % dev_path
+			sys.exit(1)
 
 	board_name = None
 	all_boards = multiservo.parse_rc(logger, "/etc/google-servo.conf")
@@ -148,7 +157,7 @@ def run_servod():
 		# A comment in servod says they should fix it to not parse
 		# sys.argv directly. Quite.
 		sys.argv = ['servod', '--rcfile', '/etc/google-servo.conf',
-		            '--serialname', ud_dev.attributes["serial"]]
+		            '--serialname', target_serial]
 		servod.main_function()
 	else: # parent
 		# Run servod and pull its stdout/stderr.
