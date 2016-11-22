@@ -2,9 +2,11 @@
 Description="Google Servo control board manager"
 ConditionPathExists=/etc/google-servo.conf
 BindsTo=dev-usb-googleservo%i.device
+StopWhenUnneeded=yes
 
 [Service]
 Type=notify
 NotifyAccess=all
 ExecStart=/usr/bin/run-servod /dev/usb/google-servo%i
+KillMode=control-group
 Restart=on-failure

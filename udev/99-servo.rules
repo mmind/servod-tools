@@ -1,4 +1,4 @@
 # google-servo* matches on our usbmisc child device, then we specify
 # SUBSYSTEMS/DRIVERS to walk up from the specific interface, to the overall
 # device, which will actually have a serial
-ACTION=="add",KERNEL=="google-servo*",SUBSYSTEMS=="usb",DRIVERS=="usb",TAG+="systemd",ENV{SYSTEMD_WANTS}+="google-servo@%n.service",ENV{ID_MODEL}="Google Servo control board %n"
+KERNEL=="google-servo*", SUBSYSTEMS=="usb", DRIVERS=="usb", TAG+="systemd", ENV{SYSTEMD_WANTS}+="google-servo@%n.service", ENV{ID_MODEL}="Google Servo control board %n"
