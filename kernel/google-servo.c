@@ -28,6 +28,7 @@
 #define GOOGLE_SERVO_MINOR_BASE	160
 
 #define GOOGLE_USB_VENDOR_ID	0x18d1
+
 #define SERVO_V2_PRODUCT_ID	0x5002
 #define SERVO_V3_PRODUCT_ID	0x5004
 #define SERVO_MICRO_PRODUCT_ID	0x501a
@@ -100,7 +101,6 @@ error:
 	return retval;
 }
 
-
 /**
  * Unregister a device from the USB core
  */
@@ -125,7 +125,6 @@ module_usb_driver(servo_driver);
 #define DRIVER_VERSION "v0.1"
 #define DRIVER_AUTHOR "Daniel Stone <daniels@collabora.com>"
 #define DRIVER_DESC "Google Servo USB Driver"
-
 
 MODULE_AUTHOR("Daniel Stone <daniels@collabora.com>");
 MODULE_DESCRIPTION("Google Servo USB control board");
