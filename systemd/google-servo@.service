@@ -3,6 +3,7 @@ Description="Google Servo control board manager"
 ConditionPathExists=/etc/google-servo.conf
 BindsTo=dev-usb-googleservo%i.device
 StopWhenUnneeded=yes
+After=network.target
 
 [Service]
 Type=notify
