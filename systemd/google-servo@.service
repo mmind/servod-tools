@@ -1,5 +1,5 @@
 [Unit]
-Description="Google Servo control board manager"
+Description="Google Servo control board manager for servo-%i"
 ConditionPathExists=/etc/google-servo.conf
 BindsTo=dev-usb-googleservo%i.device
 StopWhenUnneeded=yes
