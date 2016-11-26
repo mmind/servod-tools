@@ -1,0 +1,3 @@
+etc/systemd/system
+etc/udev/rules.d
+usr/bin
