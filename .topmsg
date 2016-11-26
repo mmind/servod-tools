@@ -1,0 +1,7 @@
+From: Heiko Stuebner <heiko@sntech.de>
+Subject: [PATCH] debian/fix-exampleconf
+
+Also comment the last entry in the config, so that we
+can install it by default without disrupting systems.
+
+Signed-off-by: Heiko Stuebner <heiko@sntech.de>
