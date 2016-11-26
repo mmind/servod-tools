@@ -1,0 +1,26 @@
+From: Heiko Stuebner <heiko@sntech.de>
+Subject: [PATCH] debian/fix-exampleconf
+
+Also comment the last entry in the config, so that we
+can install it by default without disrupting systems.
+
+Signed-off-by: Heiko Stuebner <heiko@sntech.de>
+
+---
+ conf/google-servo.conf | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/conf/google-servo.conf b/conf/google-servo.conf
+index 0c173d1..7c4e8f7 100644
+--- a/conf/google-servo.conf
++++ b/conf/google-servo.conf
+@@ -8,6 +8,6 @@
+ # name serial-number port-number board
+ #
+ 
+-big, 905537-00427, 9900, nyan, 192.168.15.23
++#big, 905537-00427, 9900, nyan, 192.168.15.23
+ #blaze, 905537-00427, 9901, nyan, 192.168.15.23
+ #pi, 905537-00427, 9902, peach_pi, 192.168.15.23
+-- 
+tg: (8adda98..) debian/fix-exampleconf (depends on: upstream)

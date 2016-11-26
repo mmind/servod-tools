@@ -3,16 +3,13 @@
 # output every command that modifies files on the build system.
 #export DH_VERBOSE = 1
 
+TG_BRANCHES := debian/fix-exampleconf
 
-# see FEATURE AREAS in dpkg-buildflags(1)
-#export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+-include /usr/share/topgit/tg2quilt.mk
 
-# see ENVIRONMENT in dpkg-buildflags(1)
-# package maintainers to append CFLAGS
-#export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
-# package maintainers to append LDFLAGS
-#export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
-
+# to export the patch series use
+#	debian/rules tg-clean
+#	debian/rules tg-export
 
 %:
 	dh $@
@@ -29,5 +26,6 @@ override_dh_auto_install:
 	install servod/run-servod debian/servod-tools/usr/bin
 	cp udev/99-servo.rules debian/servod-tools/etc/udev/rules.d
 	cp systemd/google-servo@.service debian/servod-tools/etc/systemd/system
+	cp conf/google-servo.conf debian/servod-tools/etc
 
 	dh_python2
