@@ -1,3 +1,4 @@
-etc/systemd/system
+etc
+lib/systemd/system
 lib/udev/rules.d
 usr/bin
