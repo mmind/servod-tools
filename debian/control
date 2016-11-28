@@ -1,15 +1,18 @@
 Source: servod-tools
-Section: unknown
+Section: admin
 Priority: optional
 Maintainer: Heiko Stuebner <mmind@debian.org>
-Build-Depends: debhelper (>= 9), dh-python
+Build-Depends: debhelper (>= 9), dh-python, python-all
 Standards-Version: 3.9.8
-Homepage: <insert the upstream URL, if relevant>
-#Vcs-Git: https://anonscm.debian.org/collab-maint/servod-tools.git
-#Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/servod-tools.git
+Homepage: https://git.collabora.com/cgit/user/daniels/servod-tools.git
 
 Package: servod-tools
 Architecture: all
 Depends: python-hdctools-servo, ${shlibs:Depends}, ${python:Depends}, ${misc:Depends}
-Description: <insert up to 60 chars description>
- <insert long description, indented with spaces>
+Description: Manage multiple servo control boards automatically
+ servod-tools Lets you use one or many Servo control board for Chromebooks in some
+ kind of vaguely automated fashion. After installing these and configuring for
+ your local boards, you should have access to the CPU UART as
+ /dev/google-servo/$devicename/cpu-uart, and the EC as
+ /dev/google-servo/$devicename/ec-uart, as well as having servod itself
+ listening for more complex commands on a predictable port.
