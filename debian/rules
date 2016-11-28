@@ -24,7 +24,7 @@ override_dh_auto_install:
 	dh_auto_install
 
 	install servod/run-servod debian/servod-tools/usr/bin
-	cp udev/99-servo.rules debian/servod-tools/etc/udev/rules.d
+	cp udev/99-servo.rules debian/servod-tools/lib/udev/rules.d
 	cp systemd/google-servo@.service debian/servod-tools/etc/systemd/system
 	cp conf/google-servo.conf debian/servod-tools/etc
 
